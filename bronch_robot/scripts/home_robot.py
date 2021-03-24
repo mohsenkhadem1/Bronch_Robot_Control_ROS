@@ -41,7 +41,7 @@ def read_input():
     pot_ratio = {1: 0.0415, 2: 0.0412, 3: 0.0418, 4: 0.0447, 5: 0.0413,
                  6: 0.0413}  # ratio for converting current to position in meter for each potentiometer, identified manually
     home_pos = np.array(
-        [79.93, 99.95, 114.18, 47.38, 70.5, 54.47])  # home position of motors in mm, identified manually
+        [61.59, 44.99, 66.84, 82.9, 73.8, 54.72])  # home position of motors in mm, identified manually
     motor_pos = np.zeros((6,), dtype=float)  # initializing an array containing motors' positions
     msg = bus.recv()
 

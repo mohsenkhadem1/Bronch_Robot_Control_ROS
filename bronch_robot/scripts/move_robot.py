@@ -22,30 +22,107 @@ class Motors:
         self.motor_conv_ratio = np.array(
             [614400 / 4, 614400 / 2, 614400 / 2, 614400 / 2, 614400 / 2, 614400 / 2, 614400 / 2])
         self.pos_motor = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-        self.pos = np.array([0.0, 0.0, 0.0])
+        self.pos = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         rospy.init_node('move_robot', anonymous=True)
         self.rate = rospy.Rate(self.sampling_freq)
         self.time = rospy.get_time()
-        self.velocity_insert = 10  # mm/sec
-        self.velocity_pull = 1  # mm/sec
+        self.velocity_insert = 20.0 # mm/sec
+        self.velocity_pull = 5.0  # mm/sec
+        self.velocity_pull_shaft = 3.0  # mm/sec
+        self.left_right_shaft, self.up_down_shaft, self.left_right, self.up_down, self.reset, self.reset_shaft, self.enable, self.home = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
 
     def move_motors(self):
         while not rospy.is_shutdown():
+            # subscribe and read joystick command from publisher
             rospy.Subscriber("pos_commands", Float64MultiArray, self.callback)
+
+            # set secondary control commands
+            self.reset, self.reset_shaft, self.enable, self.home = self.pos[3], self.pos[4], self.pos[5], self.pos[6]
+
+            # insertion/retraction
             self.pos_motor[0] += (rospy.get_time() - self.time) * self.pos[0] * self.velocity_insert
-            if self.pos[2] > 0:
-                if self.pos_motor[6] == 0:
-                    self.pos_motor[1] += (rospy.get_time() - self.time) * self.pos[2] * self.velocity_pull
-                else:
-                    self.pos_motor[6] = 0
-            if self.pos[2] < 0:
-                if self.pos_motor[1] == 0:
-                    self.pos_motor[6] += (rospy.get_time() - self.time) * self.pos[2] * self.velocity_pull
-                else:
-                    self.pos_motor[1] = 0
+            # insertion cannot be negative (before where it started)
+            if self.pos_motor[0] <= 0:
+                self.pos_motor[0] = 0
+
+            if self.enable == 0:
+                # left/right and up/down for tip
+                self.left_right += (rospy.get_time() - self.time) * self.pos[2] * self.velocity_pull
+                self.up_down += (rospy.get_time() - self.time) * self.pos[1] * self.velocity_pull
+            else:
+                # left/right and up/down for shaft
+                self.left_right_shaft += (rospy.get_time() - self.time) * self.pos[2] * self.velocity_pull_shaft
+                self.up_down_shaft += (rospy.get_time() - self.time) * self.pos[1] * self.velocity_pull_shaft
+
+            # convert tip commands to pull/push
+            r = 2
+            alpha = np.pi/8 # deviation
+            delta = np.arctan2(self.up_down, self.left_right)
+            delta1 = delta + alpha
+            delta2 = delta + 2 * np.pi / 3 + alpha
+            delta3 = delta + 4 * np.pi / 3 + alpha
+
+            tetha = np.sqrt(self.left_right ** 2 + self.up_down ** 2) * 2 * np.pi / 20
+
+            dl1 = r * np.cos(delta1) * tetha
+            dl2 = r * np.cos(delta2) * tetha
+            dl3 = r * np.cos(delta3) * tetha
+
+            if np.sqrt(self.left_right ** 2 + self.up_down ** 2) < 45:
+                self.pos_motor[6] = dl2
+                self.pos_motor[1] = dl3
+                self.pos_motor[2] = dl1
+            else:
+                print('WARNING Warning Robot is Breaking')
+
+            # convert shaft commands to pull/push
+            r = 2
+            alpha = -np.pi/3 - np.pi/5 + np.pi
+            delta = np.arctan2(self.up_down_shaft, self.left_right_shaft)
+            delta1 = delta + alpha
+            delta2 = delta + 2 * np.pi / 3 + alpha
+            delta3 = delta + 4 * np.pi / 3 + alpha
+
+            tetha = np.sqrt(self.left_right_shaft ** 2 + self.up_down_shaft ** 2) * 2 * np.pi / 20
+
+            dl6 = r * np.cos(delta1) * tetha
+            dl5 = r * np.cos(delta2) * tetha
+            dl4 = r * np.cos(delta3) * tetha
+
+            if np.sqrt(self.left_right_shaft ** 2 + self.up_down_shaft ** 2) < 20:
+                self.pos_motor[3] = dl5
+                self.pos_motor[4] = dl6
+                self.pos_motor[5] = dl4
+            else:
+                print('WARNING Warning Robot is Breaking')
+
+            # reset cables pos for tip if L1 is pressed
+            if self.reset == 1:
+                self.pos_motor[6] = 0
+                self.pos_motor[1] = 0
+                self.pos_motor[2] = 0
+                self.left_right = 0
+                self.up_down = 0
+                print('Tip cables resetting')
+
+            # reset cables pos for shaft if L2 is pressed
+            if self.reset_shaft == 1:
+                self.pos_motor[3] = 0
+                self.pos_motor[4] = 0
+                self.pos_motor[5] = 0
+                self.left_right_shaft = 0
+                self.up_down_shaft = 0
+                print('Shaft cables resetting')
+
+            # home robot if X is pressed
+            if self.home == 1:
+                self.pos_motor = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+                self.left_right_shaft, self.up_down_shaft, self.left_right, self.up_down, self.reset, self.reset_shaft, self.enable, self.home = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+                print('Shaft cables resetting')
 
             command = self.motor_conv_ratio * self.pos_motor
-            print(self.pos_motor[0])
+            print(self.pos_motor)
+
             self.send_message(command.reshape(7, ).astype('int64'))
             self.time = rospy.get_time()
             rospy.sleep(1 / self.sampling_freq)  # enforce sampling frequency
@@ -81,6 +158,7 @@ class Motors:
     # retrieve pos data from topic
     def callback(self, data):
         self.pos = np.asarray(data.data)
+
 
 
 if __name__ == '__main__':

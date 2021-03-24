@@ -21,9 +21,9 @@ class MyController(Controller):
         # initialize a publisher to send messages to a topic named pos_commands
         self.pub = rospy.Publisher("pos_commands", Float64MultiArray, queue_size=10)
         self.rate = rospy.Rate(30)  # 30hz
-        self.R3_up_down, self.L3_up_down, self.L3_left_right = 0.0, 0.0, 0.0
+        self.R3_up_down, self.L3_up_down, self.L3_left_right, self.reset, self.reset_shaft, self.enable, self.home = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
         self.joints = Float64MultiArray()
-        self.joints.data = [self.R3_up_down, self.L3_up_down, self.L3_left_right]
+        self.joints.data = [self.R3_up_down, self.L3_up_down, self.L3_left_right, self.reset, self.reset_shaft, self.enable, self.home]
         self.pub.publish(self.joints)
 
     def on_R3_up(self, value):
@@ -33,25 +33,49 @@ class MyController(Controller):
         self.R3_up_down = -1.0
 
     def on_R3_y_at_rest(self):
-        self.R3_up_down = 0
+        self.R3_up_down = 0.0
 
     def on_L3_up(self, value):
-        self.L3_up_down = 1
+        self.L3_up_down = 1.0
 
     def on_L3_down(self, value):
-        self.L3_up_down = -1
+        self.L3_up_down = -1.0
 
     def on_L3_left(self, value):
-        self.L3_left_right = 1
+        self.L3_left_right = 1.0
 
     def on_L3_right(self, value):
-        self.L3_left_right = -1
+        self.L3_left_right = -1.0
 
     def on_L3_y_at_rest(self):
-        self.L3_up_down = 0
+        self.L3_up_down = 0.0
 
     def on_L3_x_at_rest(self):
-        self.L3_left_right = 0
+        self.L3_left_right = 0.0
+
+    def on_L1_press(self):
+        self.reset = 1.0
+
+    def on_L1_release(self):
+        self.reset = 0.0
+
+    def on_L2_press(self):
+        self.reset_shaft = 1.0
+
+    def on_L2_release(self):
+        self.reset_shaft = 0.0
+
+    def on_R1_press(self):
+        self.enable = 1.0
+
+    def on_R1_release(self):
+        self.enable = 0.0
+
+    def on_x_press(self):
+        self.home = 1.0
+
+    def on_x_release(self):
+        self.home = 0.0
 
     # Listen to joystick and Publish pos commands for motors
     def listener(self, timeout=30):
@@ -75,7 +99,9 @@ class MyController(Controller):
                 if button_id not in self.black_listed_buttons:
                     self.__handle_event(button_id=button_id, button_type=button_type, value=value, overflow=overflow,
                                         debug=self.debug)
-                    self.joints.data = [self.R3_up_down, self.L3_up_down, self.L3_left_right]
+                    self.joints.data = [self.R3_up_down, self.L3_up_down, self.L3_left_right, self.reset, self.reset_shaft, self.enable, self.home]
+                    print(self.joints.data)
+                    # self.reset resets all cables of the tip, self.reset_shaft resets all cables of the backbone, self.enable enables movement of backbone
                     self.pub.publish(self.joints)
                     # self.rate.sleep()
                 event = read_events()
@@ -147,7 +173,7 @@ class MyController(Controller):
             self.on_L1_release()
         elif event.L2_pressed():
             self.event_history.append("L2")
-            self.on_L2_press(value)
+            self.on_L2_press()
         elif event.L2_released():
             self.on_L2_release()
         elif event.R1_pressed():
@@ -157,7 +183,7 @@ class MyController(Controller):
             self.on_R1_release()
         elif event.R2_pressed():
             self.event_history.append("R2")
-            self.on_R2_press(value)
+            self.on_R2_press()
         elif event.R2_released():
             self.on_R2_release()
         elif event.options_pressed():

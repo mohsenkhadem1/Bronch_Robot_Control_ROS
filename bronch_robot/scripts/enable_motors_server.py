@@ -12,7 +12,7 @@ from can.interface import Bus
 def handle_enable_motors(req):
     # set up connection to hardware
     can.rc['interface'] = "kvaser"
-    can.rc['channel'] = '1'
+    can.rc['channel'] = '0'
     can.rc['bitrate'] = 500000
 
     bus = Bus()
@@ -76,8 +76,17 @@ def handle_enable_motors(req):
                           data=[0x22, 0x81, 0x60, 0x0, 0x88, 0x13, 0x0, 0x0], # 5000 rpm
                           is_extended_id=False)
         bus.send(msg)
+    # motor 1 acceleration and deceleration to 100,000, velocity to 10,000
     msg = can.Message(arbitration_id=0x601,
-                      data=[0x22, 0x81, 0x60, 0x0, 0x70, 0x17, 0x0, 0x0], #6000 rpm
+                      data=[0x22, 0x81, 0x60, 0x0, 0x10, 0x27, 0x0, 0x0],  #
+                      is_extended_id=False)
+    bus.send(msg)
+    msg = can.Message(arbitration_id=0x601,
+                      data=[0x22, 0x83, 0x60, 0x0, 0xA0, 0x86, 0x01, 0x0],  #
+                      is_extended_id=False)
+    bus.send(msg)
+    msg = can.Message(arbitration_id=0x601,
+                      data=[0x22, 0x84, 0x60, 0x0, 0xA0, 0x86, 0x01, 0x0],  #
                       is_extended_id=False)
     bus.send(msg)
 
