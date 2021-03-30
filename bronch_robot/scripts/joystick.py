@@ -72,10 +72,13 @@ class MyController(Controller):
         self.enable = 0.0
 
     def on_x_press(self):
-        self.home = 1.0
+        if self.home == 0.0:
+            self.home = 1.0
+        else:
+            self.home = 0.0
 
-    def on_x_release(self):
-        self.home = 0.0
+    # def on_x_release(self):
+    #     self.home = 0.0
 
     # Listen to joystick and Publish pos commands for motors
     def listener(self, timeout=30):
