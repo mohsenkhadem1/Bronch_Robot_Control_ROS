@@ -28,14 +28,17 @@ class Motors:
         self.time = rospy.get_time()
         self.velocity_insert = 20.0  # mm/sec
         self.velocity_pull = 5.0  # mm/sec
-        self.velocity_pull_shaft = 3.0  # mm/sec
+        self.velocity_pull_shaft = 6.0  # mm/sec
         self.left_right_shaft, self.up_down_shaft, self.left_right, self.up_down, self.reset, self.reset_shaft, self.enable, self.home = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
         self.counter = 1  # counter is used to stop retraction whenever X button pressed
+        self.rot_angle = np.array([0.0])
 
     def move_motors(self):
         while not rospy.is_shutdown():
             # subscribe and read joystick command from publisher
             rospy.Subscriber("pos_commands", Float64MultiArray, self.callback)
+            # subscribe and read desired rotation for image
+            rospy.Subscriber("image_rot", Float64MultiArray, self.callback2)
 
             # set secondary control commands
             self.reset, self.reset_shaft, self.enable, self.home = self.pos[3], self.pos[4], self.pos[5], self.pos[6]
@@ -49,16 +52,20 @@ class Motors:
 
             if self.enable == 0:
                 # left/right and up/down for tip
-                self.left_right += (rospy.get_time() - self.time) * self.pos[2] * self.velocity_pull
-                self.up_down += (rospy.get_time() - self.time) * self.pos[1] * self.velocity_pull
+                self.left_right += np.cos(-self.rot_angle) * (rospy.get_time() - self.time) * self.pos[
+                    2] * -self.velocity_pull - np.sin(-self.rot_angle) * (rospy.get_time() - self.time) * self.pos[
+                                       1] * self.velocity_pull
+                self.up_down += np.sin(-self.rot_angle) * (rospy.get_time() - self.time) * self.pos[
+                    2] * -self.velocity_pull + np.cos(-self.rot_angle) * (rospy.get_time() - self.time) * self.pos[
+                                    1] * self.velocity_pull
             else:
                 # left/right and up/down for shaft
-                self.left_right_shaft += (rospy.get_time() - self.time) * self.pos[2] * self.velocity_pull_shaft
-                self.up_down_shaft += (rospy.get_time() - self.time) * self.pos[1] * self.velocity_pull_shaft
+                self.left_right_shaft += np.cos(self.rot_angle) * (rospy.get_time() - self.time) * self.pos[2] * self.velocity_pull_shaft - np.sin(self.rot_angle) * (rospy.get_time() - self.time) * self.pos[1] * self.velocity_pull_shaft
+                self.up_down_shaft += np.sin(self.rot_angle) * (rospy.get_time() - self.time) * self.pos[2] * self.velocity_pull_shaft + np.cos(self.rot_angle) * (rospy.get_time() - self.time) * self.pos[1] * self.velocity_pull_shaft
 
             # convert tip commands to pull/push
             r = 2
-            alpha = -np.pi / 20  # deviation
+            alpha = -np.pi / 20 # deviation
             delta = np.arctan2(self.up_down, self.left_right)
             delta1 = delta + alpha
             delta2 = delta + 2 * np.pi / 3 + alpha
@@ -70,16 +77,16 @@ class Motors:
             dl2 = r * np.cos(delta2) * tetha
             dl3 = r * np.cos(delta3) * tetha
 
-            if np.sqrt(self.left_right ** 2 + self.up_down ** 2) < 45:
+            if np.sqrt(self.left_right ** 2 + self.up_down ** 2) < 55:
                 self.pos_motor[3] = dl2
                 self.pos_motor[1] = dl3
-                self.pos_motor[2] = dl1
+                self.pos_motor[4] = dl1
             else:
                 print('WARNING Warning Robot is Breaking')
 
             # convert shaft commands to pull/push
             r = 2
-            alpha = np.pi - np.pi / 6
+            alpha = -np.pi / 20 - np.pi / 6
             delta = np.arctan2(self.up_down_shaft, self.left_right_shaft)
             delta1 = delta + alpha
             delta2 = delta + 2 * np.pi / 3 + alpha
@@ -91,9 +98,9 @@ class Motors:
             dl5 = r * np.cos(delta2) * tetha
             dl4 = r * np.cos(delta3) * tetha
 
-            if np.sqrt(self.left_right_shaft ** 2 + self.up_down_shaft ** 2) < 20:
+            if np.sqrt(self.left_right_shaft ** 2 + self.up_down_shaft ** 2) < 25:
                 self.pos_motor[6] = dl5
-                self.pos_motor[4] = dl6
+                self.pos_motor[2] = dl6
                 self.pos_motor[5] = dl4
             else:
                 print('WARNING Warning Robot is Breaking')
@@ -102,7 +109,7 @@ class Motors:
             if self.reset == 1:
                 self.pos_motor[3] = 0
                 self.pos_motor[1] = 0
-                self.pos_motor[2] = 0
+                self.pos_motor[4] = 0
                 self.left_right = 0
                 self.up_down = 0
                 print('Tip cables resetting')
@@ -110,7 +117,7 @@ class Motors:
             # reset cables pos for shaft if L2 is pressed
             if self.reset_shaft == 1:
                 self.pos_motor[6] = 0
-                self.pos_motor[4] = 0
+                self.pos_motor[2] = 0
                 self.pos_motor[5] = 0
                 self.left_right_shaft = 0
                 self.up_down_shaft = 0
@@ -161,6 +168,10 @@ class Motors:
     # retrieve pos data from topic
     def callback(self, data):
         self.pos = np.asarray(data.data)
+
+    # retrieve desired image rotation angle from topic
+    def callback2(self, data):
+        self.rot_angle = np.asarray(data.data)
 
 
 if __name__ == '__main__':

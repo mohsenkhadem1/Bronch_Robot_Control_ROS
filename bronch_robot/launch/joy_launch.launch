@@ -1,12 +1,22 @@
 <?xml version="1.0"?>
 <launch>
 
-    <group ns="j0">
-        <node name="ds4_joystick" pkg="joy" type="joy_node">
-                <param name="dev" value="/dev/input/js1" />
-        </node>
-    </group>
+
+  <node pkg="bronch_robot" name="cam_read" type="cam_read.py"/>
+
+
+
+  <node pkg="bronch_robot" name="enable_motors_server" type="enable_motors_server.py"/>
+
+  
+
+  <node pkg="bronch_robot" name="move_enable" type="move_robot.py"/>
+
+
+
+  <node pkg="bronch_robot" name="enable_motors_client" type="enable_motors_client.py" args="1"/>
+
+  
 
 </launch>
-
 

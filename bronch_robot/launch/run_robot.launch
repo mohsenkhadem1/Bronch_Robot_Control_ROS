@@ -1,0 +1,11 @@
+<launch>
+
+  <node pkg="bronch_robot" name="enable_motors_server" type="enable_motors_server.py" output="screen"/>
+  
+  <node pkg="bronch_robot" name="move_enable" type="move_robot.py"/>
+
+  <node pkg="bronch_robot" name="joystick_enable" type="joystick.py"/> 
+
+</launch>
+
+

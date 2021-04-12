@@ -20,11 +20,18 @@ class MyController(Controller):
         rospy.init_node('joystick', anonymous=True)
         # initialize a publisher to send messages to a topic named pos_commands
         self.pub = rospy.Publisher("pos_commands", Float64MultiArray, queue_size=10)
+        # initialize a publisher to send messages to a topic named image_rot
+        self.pub_rot_angle = rospy.Publisher("image_rot", Float64MultiArray, queue_size=10)
         self.rate = rospy.Rate(30)  # 30hz
         self.R3_up_down, self.L3_up_down, self.L3_left_right, self.reset, self.reset_shaft, self.enable, self.home = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+        self.rot_angle = 0.0
         self.joints = Float64MultiArray()
         self.joints.data = [self.R3_up_down, self.L3_up_down, self.L3_left_right, self.reset, self.reset_shaft, self.enable, self.home]
         self.pub.publish(self.joints)
+        self.angle = Float64MultiArray()
+        self.angle.data = [self.rot_angle]
+        self.pub.publish(self.angle)
+
 
     def on_R3_up(self, value):
         self.R3_up_down = 1.0
@@ -77,8 +84,11 @@ class MyController(Controller):
         else:
             self.home = 0.0
 
-    # def on_x_release(self):
-    #     self.home = 0.0
+    def on_up_arrow_press(self):
+        self.rot_angle -= 5.0
+
+    def on_down_arrow_press(self):
+        self.rot_angle += 5.0
 
     # Listen to joystick and Publish pos commands for motors
     def listener(self, timeout=30):
@@ -106,6 +116,8 @@ class MyController(Controller):
                     print(self.joints.data)
                     # self.reset resets all cables of the tip, self.reset_shaft resets all cables of the backbone, self.enable enables movement of backbone
                     self.pub.publish(self.joints)
+                    self.angle.data = [self.rot_angle]
+                    self.pub_rot_angle.publish(self.angle)
                     # self.rate.sleep()
                 event = read_events()
         except rospy.ROSInterruptException:
